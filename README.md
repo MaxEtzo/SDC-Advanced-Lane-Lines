@@ -1,13 +1,11 @@
 ## Writeup Template
 
-### You can use this file as a template for your writeup if you want to submit it as a markdown file, but feel free to use some other method and submit a pdf if you prefer.
+This project is MaxEtzo's submission for **Advancade Lane Lines** aassignment which is a part of [**Self-Driving Car Engineer Nanodegree's**](https://eu.udacity.com/course/self-driving-car-engineer-nanodegree--nd013) by **Udacity**
 
----
-
+![Example of detected road lane](./test_images_output/test4.jpg)
+    
 **Advanced Lane Finding Project**
-
 The goals / steps of this project are the following:
-
 * Compute the camera calibration matrix and distortion coefficients given a set of chessboard images.
 * Apply a distortion correction to raw images.
 * Use color transforms, gradients, etc., to create a thresholded binary image.
@@ -17,111 +15,83 @@ The goals / steps of this project are the following:
 * Warp the detected lane boundaries back onto the original image.
 * Output visual display of the lane boundaries and numerical estimation of lane curvature and vehicle position.
 
-[//]: # (Image References)
-
-[image1]: ./examples/undistort_output.png "Undistorted"
-[image2]: ./test_images/test1.jpg "Road Transformed"
-[image3]: ./examples/binary_combo_example.jpg "Binary Example"
-[image4]: ./examples/warped_straight_lines.jpg "Warp Example"
-[image5]: ./examples/color_fit_lines.jpg "Fit Visual"
-[image6]: ./examples/example_output.jpg "Output"
-[video1]: ./project_video.mp4 "Video"
-
 ## [Rubric](https://review.udacity.com/#!/rubrics/571/view) Points
 
 ### Here I will consider the rubric points individually and describe how I addressed each point in my implementation.  
 
----
+#### 1. Camera Calibation
 
-### Writeup / README
+First code cell of "sandbox.ipynb" contains camera calibration function `calibrate_cam()` that returns camera matrix and distortion coefficients. Calibration is performed with chessboard images located in the folder "./camera_cal/" with the following steps:
+* chessboard corners of each image are detected with opencv's `findChessboardCorners` and stored to `imgpoints`
+* `objpoints` are real-world coordinates. Here I assumed z = 0.
+* camera matrix and distortion coefficients are estimated with opencv's `calibrateCamera` function
+* an image can be corrected for distortion with opencv's `undistort` function
 
-#### 1. Provide a Writeup / README that includes all the rubric points and how you addressed each one.  You can submit your writeup as markdown or pdf.  [Here](https://github.com/udacity/CarND-Advanced-Lane-Lines/blob/master/writeup_template.md) is a template writeup for this project you can use as a guide and a starting point.  
-
-You're reading it!
-
-### Camera Calibration
-
-#### 1. Briefly state how you computed the camera matrix and distortion coefficients. Provide an example of a distortion corrected calibration image.
-
-The code for this step is contained in the first code cell of the IPython notebook located in "./examples/example.ipynb" (or in lines # through # of the file called `some_file.py`).  
-
-I start by preparing "object points", which will be the (x, y, z) coordinates of the chessboard corners in the world. Here I am assuming the chessboard is fixed on the (x, y) plane at z=0, such that the object points are the same for each calibration image.  Thus, `objp` is just a replicated array of coordinates, and `objpoints` will be appended with a copy of it every time I successfully detect all chessboard corners in a test image.  `imgpoints` will be appended with the (x, y) pixel position of each of the corners in the image plane with each successful chessboard detection.  
-
-I then used the output `objpoints` and `imgpoints` to compute the camera calibration and distortion coefficients using the `cv2.calibrateCamera()` function.  I applied this distortion correction to the test image using the `cv2.undistort()` function and obtained this result: 
-
-![alt text][image1]
+![Example distortion corrected calibration image](./output_images/cal_undistort.png)
 
 ### Pipeline (single images)
 
-#### 1. Provide an example of a distortion-corrected image.
+#### 2. Correction for distortion 
+First, image is corrected for distortion with opencv's `undistort` function using camera matrix and distortion coefficent estimated in previous step:
 
-To demonstrate this step, I will describe how I apply the distortion correction to one of the test images like this one:
-![alt text][image2]
+![Distortion corrected test image](./output_images/test_undist.png)
 
-#### 2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image.  Provide an example of a binary image result.
+#### 3. Sobel, White and Yellow masking 
 
-I used a combination of color and gradient thresholds to generate a binary image (thresholding steps at lines # through # in `another_file.py`).  Here's an example of my output for this step.  (note: this is not actually from one of the test images)
+I find particularly efficient to use the following masks: **sobel, white,** and **yellow**. 
+* **Sobel mask**'s purpose is to detect edge of lanes of any color. Sobel mask's is estimated based on both slope, to exclude horizontal edges, and magnitude. Sobel is applied on grayscale image with prior gaussian filtering to reduce noise.
+* **White mask**'s purpose is obviously to detect white lanes. It is estimated based on S (<30) and V (>210) channels of HSV colorspace. Note that Hue is irrelevant for white, as saturation is low
+* **Yellow mask**'s purpose is to detect yellow lanes. It is estimated based on H (15<H<30) and S (>100) channels of HSV colorspace.
+Below the sobel, white and yellow masks for test image are represented in red, blue, and green respectively.
 
-![alt text][image3]
+![Sobel, white, and yellow masks for test image](./output_images/test_masks.png)
 
-#### 3. Describe how (and identify where in your code) you performed a perspective transform and provide an example of a transformed image.
+Final binary mask is a logical OR of all three masks, i.e.`(sobel | white | yellow)`. Code for masks located in first code cell of "sandbox.ipynb".
 
-The code for my perspective transform includes a function called `warper()`, which appears in lines 1 through 8 in the file `example.py` (output_images/examples/example.py) (or, for example, in the 3rd code cell of the IPython notebook).  The `warper()` function takes as inputs an image (`img`), as well as source (`src`) and destination (`dst`) points.  I chose the hardcode the source and destination points in the following manner:
+#### 4. Perspective transform
 
-```python
-src = np.float32(
-    [[(img_size[0] / 2) - 55, img_size[1] / 2 + 100],
-    [((img_size[0] / 6) - 10), img_size[1]],
-    [(img_size[0] * 5 / 6) + 60, img_size[1]],
-    [(img_size[0] / 2 + 55), img_size[1] / 2 + 100]])
-dst = np.float32(
-    [[(img_size[0] / 4), 0],
-    [(img_size[0] / 4), img_size[1]],
-    [(img_size[0] * 3 / 4), img_size[1]],
-    [(img_size[0] * 3 / 4), 0]])
-```
-
-This resulted in the following source and destination points:
+Perspective transform is applied to obtain "birds-eye view" on lanes. First, opencv's `getPerspectiveTransform` is used to calculate a transformation matrix. Transformation "anchor" points, source and destination, are hardcoded based on "./test_images/straight_lines2.jpg", i.e. it is assumed that lanes on the image are perfectly straight and parallel. Points are given in the table below
 
 | Source        | Destination   | 
 |:-------------:|:-------------:| 
-| 585, 460      | 320, 0        | 
-| 203, 720      | 320, 720      |
-| 1127, 720     | 960, 720      |
-| 695, 460      | 960, 0        |
+| 254, 696      | 200, 720      | 
+| 585, 458      | 200, 0        |
+| 702, 458      | 1080, 0       |
+| 1070, 696     | 1080, 720     |
 
-I verified that my perspective transform was working as expected by drawing the `src` and `dst` points onto a test image and its warped counterpart to verify that the lines appear parallel in the warped image.
+Perspective transform is then applied to an individual image using opencv's `warpPerspective`.
 
-![alt text][image4]
+![Birds-eye view of test image](./output_images/test_warped.png)
 
-#### 4. Describe how (and identify where in your code) you identified lane-line pixels and fit their positions with a polynomial?
+#### 5. Peak detection (lane points) and polyfit
 
-Then I did some other stuff and fit my lane lines with a 2nd order polynomial kinda like this:
+Lane points are detected on one-dimensional convolution values (see function `convolution1D` in code cell 5), i.e. convolution window is sliding across one dimension of the image. Start and end boundary for convolution for both left and right lane can be set based on the location of the previously found peaks (i.e. located lower in the image + margin). Simple `numpy.max` is used to identify peak. If multiple max's found the center location (via averaging) is taken as lane point. 
 
-![alt text][image5]
+![Lane points (peaks) identified for test image](./output_images/test_points.png)
 
-#### 5. Describe how (and identify where in your code) you calculated the radius of curvature of the lane and the position of the vehicle with respect to center.
+Self-implemented polyfit (code cell 7) is used to estimate a polynomial coefficient for left and right cell respectively
 
-I did this in lines # through # in my code in `my_other_file.py`
+![Polyfit result for test image](./output_images/test_lanes.png)
 
-#### 6. Provide an example image of your result plotted back down onto the road such that the lane area is identified clearly.
+#### 6. Final result:
 
-I implemented this step in lines # through # in my code in `yet_another_file.py` in the function `map_lane()`.  Here is an example of my result on a test image:
+Estimated polynomial coefficients for left and right lane are passed to `generate_lane_img` function. Result is a lane image in birds-eye view. The lane image is warped back with inverse perspective transform matrix and added on top of original undistorted image (simple binary OR). Complete pipeline is implemented in function `draw_lane` in code cell 7.
 
-![alt text][image6]
+![Result of pipeline on test image](./test_images_output/test4.jpg)
 
----
+Results for all test images can be found "/test_images_output" folder.
 
 ### Pipeline (video)
 
-#### 1. Provide a link to your final video output.  Your pipeline should perform reasonably well on the entire project video (wobbly lines are ok but no catastrophic failures that would cause the car to drive off the road!).
+#### Difference to static image pipeline:
+See code cell 10.
+* Class `video_lane` is implemented to keep track of main variables across multiple frames
+* Lane polynomial of a frame determine initial convolution boundaries for the next frame
+* Lane polynomial is filtered with a decay factor for smoothness. Pseudocode: `poly_coeff[i] = measured_poly_coeff[i] * (1 - alpha) + poly_coeff[i-1]*alpha`
+* Curvature and position are averaged across 5 frames and are updated every 5th frame respectively (for smoothness, otherwise values almost unreadable)
 
-Here's a [link to my video result](./project_video.mp4)
+#### Final result:
+Here's a [link to my video result](./project_video_output.mp4)
 
----
-
-### Discussion
-
-#### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
-
-Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.  
+### Reflections:
+Pipeline performs unsatisfactory on challenge videos. For example because of strong gradient in the middle of the road lane, that has nothing to do with lane markings. To avoid this, my suggestion is to remove sobel mask completely, and rely only on white and yellow masks. Another suggestion is to reject outliers when estimating polynomial coefficients for a more accurate results. And last but not least, implementing a some sort of confidence estimator will help improve accuracy substantially.  So that only a high confidence level lanes are taken into account, and if no such found then the lane for the frame is extrapolated based on the previous frames.
