@@ -73,6 +73,8 @@ Self-implemented polyfit (code cell 7) is used to estimate a polynomial coeffici
 
 ![Polyfit result for test image](./output_images/test_lanes.png)
 
+Curvature is estimated only in video pipeline as a method of `video_lane` class.
+
 #### 6. Final result:
 
 Estimated polynomial coefficients for left and right lane are passed to `generate_lane_img` function. Result is a lane image in birds-eye view. The lane image is warped back with inverse perspective transform matrix and added on top of original undistorted image (simple binary OR). Complete pipeline is implemented in function `draw_lane` in code cell 7.
